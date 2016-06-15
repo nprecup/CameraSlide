@@ -28,7 +28,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	call attributes_write(c_slider_status, 0, 2, status)
 	# Set the 'zero' pwm greyscale to 50%
 	pwm_baseline = 5120
-	slide_zero_pwm = 5120/2
+	slide_zero_pwm = pwm_baseline/2
 	initializing = 0
 	# Set advertisement interval to 20ms min, 30 ms max (units are 0.625 ms)
 	# Use all three advertisement channels (7 = bitmask 0b00000111)
@@ -47,7 +47,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
 	# configure soft timer for 1 second intervals (32768 Hz crystal, interval = 32768/32768)
-	# This timer is used for triggering photos
+	# This timer is used for triggering photos (clock cycles per tick, timer handle, 0 - continuous)
     call hardware_set_soft_timer(32768, 1, 0)
 end
  
@@ -172,36 +172,46 @@ end
 
 # catch timer tick for shutter timing...
 event hardware_soft_timer(handle)
-	if status = 2 then
-		if elapsed_ticks = 0 then
-			# Start the exposure...
-			call hardware_io_port_write(0, $01, $01)
-		end if
-		if elapsed_ticks = exposure_ticks then
-			# End the exposure...
-			call hardware_io_port_write(0, $01, $00)
-			# Update the number of shots taken...
-			shots_taken = shots_taken + 1
-			call attributes_write(c_shots_taken, 0, 2, shots_taken)
-			# Check for an update on the number of ticks we need to wait for the interval and exposure and shot count...
-			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
-			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
-			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
-			# Move to the next shot location!!!
-			# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
-		end if
-		if elapsed_ticks = interval_ticks then
-			# Reset elapsed ticks
-			elapsed_ticks = 0
+	if handle = 1 then # Continuous timer event
+		if status = 2 then
+			if elapsed_ticks = 0 then
+				# Start the exposure...
+				call hardware_io_port_write(0, $01, $01)
+			end if
+			if elapsed_ticks = exposure_ticks then
+				# End the exposure...
+				call hardware_io_port_write(0, $01, $00)
+				# Update the number of shots taken...
+				shots_taken = shots_taken + 1
+				call attributes_write(c_shots_taken, 0, 2, shots_taken)
+				# Check for an update on the number of ticks we need to wait for the interval and exposure and shot count...
+				call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
+				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
+				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+				# Move to the next shot location!!!
+				# Set output pwm to 3/4 greyscale (or whatever):
+				call hardware_timer_comparator(1,1,6,(pwm_baseline*3/4))
+				# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
+				# 0.5 second, timer handle = 2, single shot
+				call hardware_set_soft_timer(16384, 2, 1)
+			end if
+			if elapsed_ticks = interval_ticks then
+				# Reset elapsed ticks
+				elapsed_ticks = 0
+			else
+				# Increment elapsed ticks
+				elapsed_ticks = elapsed_ticks + 1
+			end if
+			if shots_taken = shots_requested then
+				# Finished with sequence!
+				status = 0
+			end if
 		else
-			# Increment elapsed ticks
-			elapsed_ticks = elapsed_ticks + 1
+			elapsed_ticks = 0
 		end if
-		if shots_taken = shots_requested then
-			# Finished with sequence!
-			status = 0
-		end if
-	else
-		elapsed_ticks = 0
+	end if
+	if handle = 2 # One-shot timer event
+		# Set PWM output to 50% duty cycle, which should stop servo rotation.
+		call hardware_timer_comparator(1,1,6,slide_zero_pwm)
 	end if
 end
