@@ -103,7 +103,8 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 			end if
 			# !!!!!!!! remember to add in capability for the other direction.
 			
-			# Reset the GATT initialize trigger.
+			# Reset the GATT initialize trigger. This has the indicate property.
+			# This pushes the updated attribute to the client.
 			call attributes_write(u_init, 0, 1, 0)
 			#Finished initializing!
 		end if
