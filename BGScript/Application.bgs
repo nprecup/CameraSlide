@@ -127,8 +127,6 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 		if status = 1 then
 			# Only start this sequence if we have initialized our axes...
 			if value_data(0:1) = 1 then
-				# Update status from 0 to 1...
-				call attributes_write(c_slider_status, 0, 1, 1)
 				# Notify that we have taken no shots yet.
 				shots_taken = 0
 				call attributes_write(c_shots_taken, 0, 2, shots_taken)
@@ -136,8 +134,18 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 				call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
 				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
 				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+				# Do some basic error checking... Do nothing if it doesn't make sense...
+				if (interval_ticks - exposure_ticks) < 1 then # We need at least one second downtime...
+					call attributes_write(c_error_code, 0, 2, $01)
+					return
+				end if
+				if shots_requested < 2 then # We need at least two photos to take.
+					call attributes_write(c_error_code, 0, 2, $02)
+					return
+				end if
 				# Now set the flag to start the sequence...
 				status = 2
+				# Update status from 1 to 2, to indicate that we are currently in sequence.
 				call attributes_write(c_slider_status, 0, 2, status)
 			end if
 		end if

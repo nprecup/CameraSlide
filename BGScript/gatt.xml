@@ -48,7 +48,7 @@
         <!-- Initialize, boolean (one byte integer), trigger init on 0 to 1 transition -->
         <characteristic uuid="d9768c38-327b-11e6-ac61-9e71128cae77" id="u_init">
             <description>Initialize Slide</description>
-            <properties write="true" notify="indicate" />
+            <properties write="true" indicate="true" />
             <value length="1" type="user">0</value>
         </characteristic>
         
@@ -94,10 +94,17 @@
             <value length="2" type="hex"/>
         </characteristic>
 
-        <!-- slider length, single precision floating point --> 
+        <!-- slider length, integer inches --> 
         <characteristic uuid="bb891e48-3267-11e6-ac61-9e71128cae77" id="c_slider_length">
             <description>Number of shots taken</description>
             <properties read="true" />
+            <value length="4" type="hex"/>
+        </characteristic>
+
+        <!-- error code --> 
+        <characteristic uuid="da9f46dc-32a7-11e6-ac61-9e71128cae77" id="c_error_code">
+            <description>Error Code</description>
+            <properties read="true" notify="true"/>
             <value length="4" type="hex"/>
         </characteristic>
     </service>
