@@ -187,6 +187,8 @@ event hardware_soft_timer(handle)
 			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
 			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
 			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+			# Move to the next shot location!!!
+			# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
 		end if
 		if elapsed_ticks = interval_ticks then
 			# Reset elapsed ticks
