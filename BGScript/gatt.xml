@@ -48,7 +48,7 @@
         <!-- Initialize, boolean (one byte integer), trigger init on 0 to 1 transition -->
         <characteristic uuid="d9768c38-327b-11e6-ac61-9e71128cae77" id="u_init">
             <description>Initialize Slide</description>
-            <properties write="true" />
+            <properties write="true" notify="true" />
             <value length="1" type="user">0</value>
         </characteristic>
         
