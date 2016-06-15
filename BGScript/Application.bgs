@@ -1,14 +1,18 @@
-dim shots_taken
-dim shots_requested
-dim slide_zero_pwm
-dim pwm_baseline
-dim initializing
-dim interval_ticks
-dim exposure_ticks
-dim elapsed_ticks
-dim status
+dim shots_taken # Counter to keep track of the number of shots taken during a time lapse sequence
+dim shots_requested # Variable that is stored when the client updates us with a number of shots to take in the sequence (set in GATT server)
+dim slide_zero_pwm # Timer1 PWM greyscale value, calibrated so that the sliding axis does not move
+dim pwm_baseline # Baseline PWM setting that produces a 50 Hz timer frequency.
+dim initializing # Flag to indicate that the slider is initializing (sliding axis moves to limit, yaw axis set to initial position)
+dim interval_ticks # Value which is set from GATT server to specify the number of soft timer ticks to wait between shots in the sequence
+dim exposure_ticks # Value which is set from GATT server to specify the number of soft timer ticks to wait before ending an exposure
+dim elapsed_ticks # Counter to count by the number of soft timer ticks that have elapsed.
+dim status # variable describing the state of the system (0 - uninitialized, 1 - initialized, 2 - capturing sequence)
+dim moving # variable to indicate motion of the sliding axis
+
 # Boot event listener
 event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
+	#slider is not moving
+	moving = 0
 	# We haven't taken any photos yet
 	shots_taken = 0
 	call attributes_write(c_shots_taken, 0, 2, shots_taken)
@@ -42,7 +46,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
     call hardware_io_port_config_irq(1, 18, 1)
     # Set shutter (P1_0) and focus (P1_1) as output
     # (port=1, pin mode mask = 0b00000011)
- 	call hardware_io_port_config_direction(1, $02)# Set P0_0 pin HIGH
+ 	call hardware_io_port_config_direction(1, $02) # Set P0_0 pin HIGH
  	# Set shutter and focus pin outputs to zero
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
@@ -51,8 +55,6 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
     call hardware_set_soft_timer(32768, 1, 0)
 end
  
-
-
 # Connection event listener
 event connection_status(connection, flags, address, address_type, conn_interval, timeout, latency, bonding)
 	# Device is connected
@@ -170,16 +172,23 @@ event hardware_io_port_status(delta, port, irq, state)
     end if
 end
 
-# catch timer tick for shutter timing...
+# catch timer ticks. This handles both the continous timer, and the one shot timer that moves the camera.
 event hardware_soft_timer(handle)
 	if handle = 1 then # Continuous timer event
 		if status = 2 then
+			if moving = 1
+				# Exit this event, we are still moving. Check it again next time.
+				# Don't exit before incrementing elapsed ticks! Normally this is incremented below.
+				# If we exit the event, we must increment it here.
+				elapsed_ticks = elapsed_ticks + 1
+				return # returns from the event
+			end if
 			if elapsed_ticks = 0 then
 				# Start the exposure...
 				call hardware_io_port_write(0, $01, $01)
 			end if
 			if elapsed_ticks = exposure_ticks then
-				# End the exposure...
+				# End the exposure... this only works while camera is in bulb mode. Otherwise it just takes the specified exposure.
 				call hardware_io_port_write(0, $01, $00)
 				# Update the number of shots taken...
 				shots_taken = shots_taken + 1
@@ -189,6 +198,11 @@ event hardware_soft_timer(handle)
 				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
 				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
 				# Move to the next shot location!!!
+				# To adjust the distance the camera moves for each shot:
+				#	Configure the PWM greyscale to adjust speed of servo
+				#	Configure the one-shot timer delay to adjust the span of time the servo moves the camera
+				# We need to make sure that this timer event waits while we are moving, so we have a moving flag we need to set...
+				moving = 1
 				# Set output pwm to 3/4 greyscale (or whatever):
 				call hardware_timer_comparator(1,1,6,(pwm_baseline*3/4))
 				# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
@@ -213,5 +227,7 @@ event hardware_soft_timer(handle)
 	if handle = 2 # One-shot timer event
 		# Set PWM output to 50% duty cycle, which should stop servo rotation.
 		call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+		# Ok, set the moving flag back to zero so we can process repeating timer handle 1's events again.
+		moving = 0
 	end if
 end
