@@ -1,28 +1,31 @@
-dim interval
-dim exposure
-dim connected # connection status variable
 dim shots_taken
 dim shots_requested
 dim slide_zero_pwm
 dim pwm_baseline
 dim initializing
- 
+dim interval_ticks
+dim exposure_ticks
+dim elapsed_ticks
+dim status
 # Boot event listener
 event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
-	# Device is not connected yet
-	connected = 0
 	# We haven't taken any photos yet
 	shots_taken = 0
 	call attributes_write(c_shots_taken, 0, 2, shots_taken)
 	# No shots requested
 	shots_requested = 0
 	call attributes_write(c_shots_requested, 0, 2, shots_requested)
+	# Set timer ticks to 0...
+	elapsed_ticks = 0
 	# Expsure set to 30 seconds
-	exposure = 30
-	call attributes_write(c_exposure_length, 0, 2, exposure)
+	exposure_ticks = 30
+	call attributes_write(c_exposure_length, 0, 2, exposure_ticks)
 	# Interval set to 45 seconds
-	interval = 45
-	call attributes_write(c_shot_interval, 0, 2, interval)
+	interval_ticks = 45
+	call attributes_write(c_shot_interval, 0, 2, interval_ticks)
+	# Update status to reflect uninitialized state
+	status = 0
+	call attributes_write(c_slider_status, 0, 2, status)
 	# Set the 'zero' pwm greyscale to 50%
 	pwm_baseline = 5120
 	slide_zero_pwm = 5120/2
@@ -37,6 +40,15 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# enable interrupt on P1_3 and P1_4 rising edge
     # (parameters are port=0, bitmask=0b000011000, edge=falling)
     call hardware_io_port_config_irq(1, 18, 1)
+    # Set shutter (P1_0) and focus (P1_1) as output
+    # (port=1, pin mode mask = 0b00000011)
+ 	call hardware_io_port_config_direction(1, $02)# Set P0_0 pin HIGH
+ 	# Set shutter and focus pin outputs to zero
+	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
+	call hardware_io_port_write(0, $02, $00)
+	# configure soft timer for 1 second intervals (32768 Hz crystal, interval = 32768/32768)
+	# This timer is used for triggering photos
+    call hardware_set_soft_timer(32768, 1, 0)
 end
  
 
@@ -44,25 +56,22 @@ end
 # Connection event listener
 event connection_status(connection, flags, address, address_type, conn_interval, timeout, latency, bonding)
 	# Device is connected
-	connected = 1
+	# Do anything we want to happen here...
 end
 
 # Desconnection event listener
 event connection_disconnected(connection, result)
 	#connection disconnected, resume advertising
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
-	connected = 0
 end
 
-# Procedure to incrememnt the GATT attribute of the number of shots taken.
-procedure increment_shots_taken()
-	shots_taken = shots_taken + 1
-	call attributes_write(c_shots_taken, 0, 2, shots_taken)
-end
 
 dim result
 dim portread
 dim data
+dim out_handle
+dim out_offset
+dim out_value_len
 # Catch an attribute write event from the phone...
 event attributes_value(connection, reason, handle, offset, value_len, value_data)
 	# This is to handle all user attributes changes.
@@ -106,17 +115,31 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 			# Reset the GATT initialize trigger. This has the indicate property.
 			# This pushes the updated attribute to the client.
 			call attributes_write(u_init, 0, 1, 0)
-			#Finished initializing!
+			# Finished initializing!
+			# Update status to reflect initialized state
+			status = 1
+			call attributes_write(c_slider_status, 0, 2, status)
 		end if
 	end if
+
 	if handle = u_trigger_sequence then
 		# Start acquisition sequence here...
-		if value_data(0:1) = 1 then
-			# Update status from 0 to 1...
-			call attributes_write(c_slider_status, 0, 1, 1)
-			# Indicate that we have taken no shots yet.
-			shots_taken = 0
-			call attributes_write(c_shots_taken, 0, 2, shots_taken)
+		if status = 1 then
+			# Only start this sequence if we have initialized our axes...
+			if value_data(0:1) = 1 then
+				# Update status from 0 to 1...
+				call attributes_write(c_slider_status, 0, 1, 1)
+				# Notify that we have taken no shots yet.
+				shots_taken = 0
+				call attributes_write(c_shots_taken, 0, 2, shots_taken)
+				# Get the number of ticks we need to wait for the interval and exposure...
+				call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
+				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
+				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+				# Now set the flag to start the sequence...
+				status = 2
+				call attributes_write(c_slider_status, 0, 2, status)
+			end if
 		end if
 	end if
 end
@@ -137,4 +160,38 @@ event hardware_io_port_status(delta, port, irq, state)
 			initializing = 0
         end if
     end if
+end
+
+# catch timer tick for shutter timing...
+event hardware_soft_timer(handle)
+	if status = 2 then
+		if elapsed_ticks = 0 then
+			# Start the exposure...
+			call hardware_io_port_write(0, $01, $01)
+		end if
+		if elapsed_ticks = exposure_ticks then
+			# End the exposure...
+			call hardware_io_port_write(0, $01, $00)
+			# Update the number of shots taken...
+			shots_taken = shots_taken + 1
+			call attributes_write(c_shots_taken, 0, 2, shots_taken)
+			# Check for an update on the number of ticks we need to wait for the interval and exposure and shot count...
+			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval_ticks)
+			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure_ticks)
+			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+		end if
+		if elapsed_ticks = interval_ticks then
+			# Reset elapsed ticks
+			elapsed_ticks = 0
+		else
+			# Increment elapsed ticks
+			elapsed_ticks = elapsed_ticks + 1
+		end if
+		if shots_taken = shots_requested then
+			# Finished with sequence!
+			status = 0
+		end if
+	else
+		elapsed_ticks = 0
+	end if
 end
