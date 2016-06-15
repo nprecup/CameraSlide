@@ -33,6 +33,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# Start advertising (discoverable/connectable)
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
 
+    call hardware_io_port_config_direction(0, 18)
 	# enable interrupt on P1_3 and P1_4 rising edge
     # (parameters are port=0, bitmask=0b000011000, edge=falling)
     call hardware_io_port_config_irq(1, 18, 1)
@@ -59,6 +60,9 @@ procedure increment_shots_taken()
 	call attributes_write(c_shots_taken, 0, 2, shots_taken)
 end
 
+dim result
+dim portread
+dim data
 # Catch an attribute write event from the phone...
 event attributes_value(connection, reason, handle, offset, value_len, value_data)
 	# This is to handle all user attributes changes.
@@ -80,16 +84,25 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 			# set to 0% !!Uncomment when we have a new board!!
 			# call hardware_timer_comparator(1,2,6,0)
 
-			# Now move the sliding axis until we reach the negative limit switch
-			# Set duty cycle to 25% (pwm_baseline/4)
-			# This will cause our continuous rotation servo to move negative indefinitely
-			# (until we catch the limit switch input low transition)
-			# We should add in capability to start from the other direction, too...
-			call hardware_timer_comparator(1,1,6,(pwm_baseline/4))
-			while initializing = 1
-				# Twiddle our thumbs waiting for the limit switch to be hit...
-			end while
-			# The slide axis has reached the limit switch.
+			# Check to see if we are at the limit...
+			call hardware_io_port_read(1, $18)(result, portread, data)
+			if data = $8 then
+				# We have not hit any limit switch yet... run as needed.
+				# Now move the sliding axis until we reach the negative limit switch
+				# Set duty cycle to 25% (pwm_baseline/4)
+				# This will cause our continuous rotation servo to move negative indefinitely
+				# (until we catch the limit switch input low transition)
+				# We should add in capability to start from the other direction, too...
+				call hardware_timer_comparator(1,1,6,(pwm_baseline/4))
+				while initializing = 1
+					# Twiddle our thumbs waiting for the limit switch to be hit...
+				end while
+				# The slide axis has reached the limit switch.
+			else
+				# Already at the limit! Don't do anything.
+			end if
+			# !!!!!!!! remember to add in capability for the other direction.
+			
 			# Reset the GATT initialize trigger.
 			call attributes_write(u_init, 0, 1, 0)
 			#Finished initializing!
