@@ -37,14 +37,28 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# Start advertising (discoverable/connectable)
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
 	# enable interrupt on P1_3 and P1_4 rising edge
-    # (parameters are port=1, bitmask=0b000011000=18, edge=falling)
-    call hardware_io_port_config_irq(1, 18, 1)
-    # Set shutter (P1_0) and focus (P1_1) as output
-    # (port=1, pin mode mask = 0b00000011)
- 	call hardware_io_port_config_direction(1, $02) # Set P0_0 pin HIGH
- 	# Set shutter and focus pin outputs to zero
+	# (parameters are port=1, bitmask=0b000011000=18, edge=falling)
+	call hardware_io_port_config_irq(1, 18, 1)
+	# Set shutter (P1_0) and focus (P1_1) as output
+	# (port=1, pin mode mask = 0b00000011)
+	call hardware_io_port_config_direction(1, $02) # Set P0_0 pin HIGH
+	# Set shutter and focus pin outputs to zero
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
+	# Configure timer for PWM servo source...
+	# 32.768 MHz chip, Timer1 set to divisor = 3 in hardware.xml
+	# which divides by 128, so we end up with 256 kHz
+	# and we want to get to 50 Hz for servo
+	# So we set the comparator to flip every 5120 ticks, for 50 Hz
+	# pwm_baseline is a variable set to 5120
+	# Channel 0 (IO pin 1.2) is set as baseline frequency at 50 Hz:
+	call hardware_timer_comparator(1, 0, 6, pwm_baseline)
+	# Channel 1 (IO pin 1.3) is now the PWM output...
+	# set to 50% (slide_zero_pwm = pwm_baseline/2)
+	call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+	# Channel 2 (IO pin 1.4) is now the PWM output...
+	# set to 0% !!Uncomment when we have a new board!!
+	# call hardware_timer_comparator(1,2,6,0)
 end
 
 # Connection event listener
@@ -60,55 +74,60 @@ event connection_disconnected(connection, result)
 end
 
 
+# Procedure for moving the sliding axis.
+# Pass in non-zero PWM offset for motion.
+# This procedure checks to make sure we haven't hit a limit switch before moving.
+# If we are in the middle of a sequence, and have run into the end limit switch,
+# this ignores the request. Which is good, the system keeps running as before
+# but doesn't move. 
 dim result
 dim portread
 dim data
+procedure MoveSlider(offset)
+	if offset > 0
+		# Motion in the positive direction.
+		# Check to see if we are at the positive limit...
+		call hardware_io_port_read(1, $10)(result, portread, data)
+		if data = $10 then
+			# We are not at the limit (active low limit)
+			call hardware_timer_comparator(1,1,6,(slide_zero_pwm + offset))
+		end if
+	end if
+	if offset < 0
+		# Motion in the negative direction.
+		# Check to see if we are at the negative limit...
+		call hardware_io_port_read(1, $8)(result, portread, data)
+		if data = $8 then
+			# We are not at the limit (active low limit)
+			call hardware_timer_comparator(1,1,6,(slide_zero_pwm + offset))
+		end if
+	end if
+	if offset = 0
+		# Stop motion, don't bother checking for limits.
+		call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+	end if
+end
+
+
 dim out_handle
 dim out_offset
 dim out_value_len
 # Catch an attribute write event from the phone...
 event attributes_value(connection, reason, handle, offset, value_len, value_data)
-	# This is to handle all user attributes changes.
+	# The GATT server received a u_init 0 to 1 transition.
 	if handle = u_init then
 		if value_data(0:1) = 1 then
+			# Set a flag to let the limit switch interrupts know we are initialzing the slide axis...
 			initializing = 1
-			# Configure timer for PWM servo source...
-			# 32.768 MHz chip, Timer1 set to divisor = 3 in hardware.xml
-			# which divides by 128, so we end up with 256 kHz
-			# and we want to get to 50 Hz for servo
-			# So we set the comparator to flip every 5120 ticks, for 50 Hz
-			# pwm_baseline is a variable set to 5120
-			# Channel 0 (IO pin 1.2) is set as baseline frequency at 50 Hz:
-			call hardware_timer_comparator(1, 0, 6, pwm_baseline)
-			# Channel 1 (IO pin 1.3) is now the PWM output...
-			# set to 50% (slide_zero_pwm = pwm_baseline/2)
-			call hardware_timer_comparator(1,1,6,slide_zero_pwm)
-			# Channel 2 (IO pin 1.4) is now the PWM output...
-			# set to 0% !!Uncomment when we have a new board!!
-			# call hardware_timer_comparator(1,2,6,0)
-
-			# Check to see if we are at the limit...
-			call hardware_io_port_read(1, $18)(result, portread, data)
-			if data = $8 then
-				# We have not hit the negative limit switch yet...
-				# Now move the sliding axis until we reach the negative limit switch
-				# Set duty cycle to 25% (pwm_baseline/4)
-				# This will cause our continuous rotation servo to move negative indefinitely
-				# (until we catch the limit switch input low transition)
-				# We should add in capability to start from the other direction, too...
-				call hardware_timer_comparator(1,1,6,(pwm_baseline/4))
-				# When the slide axis reaches the limit switch, the interrupt event is triggered.
-				# The initializing flag let's the interrupt event know that it needs to tell the client
-				# that the system is now initialized.
-			else
-				# Already at the limit! Don't do anything.
-			end if
-			# !!!!!!!! remember to add in capability for the other direction.
-			
-			
+			# Now move the sliding axis until we reach the negative limit switch
+			# At some point add in capability to initialize to the other side of the slider.
+			call MoveSlider(-100)
+			# When the slide axis reaches the limit switch, the interrupt event is triggered.
+			# The initializing flag let's the interrupt event know that it needs to tell the client
+			# that the system is now initialized.
 		end if
 	end if
-
+	# The GATT server received a u_start_trigger 0 to 1 transition.
 	if handle = u_trigger_sequence then
 		# Start acquisition sequence here...
 		if status = 1 then
@@ -144,11 +163,11 @@ end
 
 # catch limit switch event P1_3, P1_4 (active LOW configuration)
 event hardware_io_port_status(delta, port, irq, state)
-    if port = 1 then
-        if (irq & $8) = 0 then
-            # P1_3 is LOW and the source of this interrupt
-            # Stop slider motion...
-			call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+	if port = 1 then
+		if (irq & $8) = 0 then
+			# P1_3 is LOW and the source of this interrupt
+			# Stop slider motion...
+			call MoveSlider(0)
 			if initializing = 1 then
 				# We are initializing the sliding axis (moving it to 'zero').
 				# The axis hit the limit switch. We're initialized.
@@ -161,11 +180,11 @@ event hardware_io_port_status(delta, port, irq, state)
 				status = 1
 				call attributes_write(c_slider_status, 0, 2, status)
 			end if
-        end if
-        if (irq & $10) = 0 then
-            # P1_4 is LOW and the source of this interrupt
-            # Stop slider motion...
-			call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+		end if
+		if (irq & $10) = 0 then
+			# P1_4 is LOW and the source of this interrupt
+			# Stop slider motion...
+			call MoveSlider(0)
 			if initializing = 1 then
 				initializing = 0
 				# Reset the GATT initialize trigger. This has the indicate property.
@@ -176,8 +195,8 @@ event hardware_io_port_status(delta, port, irq, state)
 				status = 1
 				call attributes_write(c_slider_status, 0, 2, status)
 			end if
-        end if
-    end if
+		end if
+	end if
 end
 
 # catch timer ticks. This handles both the continous timer, and the one shot timer that moves the camera.
@@ -216,16 +235,16 @@ event hardware_soft_timer(handle)
 		#	Configure the one-shot timer delay to adjust the span of time the servo moves the camera
 		# We need to make sure that this timer event waits while we are moving, so we have a moving flag we need to set...
 		moving = 1
-		# Set output pwm to 3/4 greyscale (or whatever):
-		call hardware_timer_comparator(1,1,6,(pwm_baseline*3/4))
+		# Change PWM output by some positive offset...
+		call MoveSlider(1000)
 		# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
 		# 0.5 second, timer handle = 3, single shot
 		call hardware_set_soft_timer(16384, 3, 1)
 	end if
 
 	if handle = 3 # One-shot timer event, handles the motion timer
-		# Set PWM output to 50% duty cycle, which should stop servo rotation.
-		call hardware_timer_comparator(1,1,6,slide_zero_pwm)
+		# Stop servo motion
+		call MoveSlider(0)
 		# Ok, set the moving flag back to zero so we can process repeating timer handle 1's events again.
 		moving = 0
 	end if
