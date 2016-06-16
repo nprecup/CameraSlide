@@ -1,7 +1,7 @@
 Automated Camera Slider
 =================================================
 
-The goal of this project is to create a budget, yet high quality, motorized camera slider, with two axis capability, and Bluetooth communications. This slider is to be used in very remote locations shooting landscape astrophotography time-lapses. This drives a requirement for portability, with a small battery and low power consumption.
+The goal of this project is to create a budget, yet high quality, motorized camera slider, with two axis capability, and Bluetooth communications. This slider is to be used in very remote locations for time-lapse landscape astrophotography. This drives a requirement for portability, with a small battery and low power consumption.
 
 Mechanical Design
 -----------------------
