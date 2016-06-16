@@ -1,4 +1,7 @@
-This project uses a BLE113 module to control and interface with a motorized camera slide. The BLE113 module contains a 5141 microcontroller that is capable of providing PWM output for servo drive signals, hardware interrupt events for limit switches, and timers with GPIO to trigger a camera for time lapse photography. The system is currently being developed for Canon EOS cameras, with an Android app for bluetooth control.
+Automated Camera Slider
+=================================================
+
+This project uses a BLE113 module to control and interface with a motorized camera slide. The BLE113 module contains a 2541 microcontroller that is capable of providing PWM output for servo drive signals, hardware interrupt events for limit switches, and timers with GPIO to trigger a camera for time lapse photography. The system is currently being developed for Canon EOS cameras, with an Android app for bluetooth control.
 
 The circuit was designed using Eagle PCB design software. Below is a schematic of the circuit system.
 
