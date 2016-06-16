@@ -1,18 +1,30 @@
 dim shots_taken # Counter to keep track of the number of shots taken during a time lapse sequence
 dim shots_requested # Variable that is stored when the client updates us with a number of shots to take in the sequence (set in GATT server)
-# This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
-# n = 1,024,000/(Desired Frequency, 50), so n = 102400/50 = 20480
-const pwm_baseline = 20480 # Baseline PWM setting that produces a 50 Hz timer frequency.
-# Set the 'zero' pwm greyscale to 50% (20480/2). Tune as necessary when hardware is ready for testing
-const slide_zero_pwm = 10240 # Timer1 zero movement PWM greyscale value (0 to 20480), calibrated so that the sliding axis does not move
 dim initializing # Flag to indicate that the slider is initializing (sliding axis moves to limit, yaw axis set to initial position)
 dim interval # Value which is set from GATT server to specify the frequency of the soft timer (units of clock periods, operates at 32768 Hz). Maximum is 128 seconds.
 dim exposure # Value which is set from GATT server to specify the duration of the one-shot timer (units of clock periods, operates at 32768 Hz)
 dim status # variable describing the state of the system (0 - uninitialized, 1 - initialized, 2 - capturing sequence)
 dim moving # variable to indicate motion of the sliding axis
+dim is_connected # variable to indicate connection status
+dim current_bond_handle # variable to indicate bonding to a peripheral (for encrypted connections)
+
+# This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
+# n = 1,024,000/(Desired Frequency, 50), so n = 102400/50 = 20480
+const pwm_baseline = 20480 # Baseline PWM setting that produces a 50 Hz timer frequency.
+# Set the 'zero' pwm greyscale to 50% (20480/2). Tune as necessary when hardware is ready for testing
+const slide_zero_pwm = 10240 # Timer1 zero movement PWM greyscale value (0 to 20480), calibrated so that the sliding axis does not move
+const ENCRYPTED_VALUE = 42
+const TICKS_PER_SECOND = 32768
+const ENCRYPTION_TIMEOUT_SECONDS = 1
+const INTERVAL_TIMER_HANDLE = 1
+const EXPOSURE_TIMER_HANDLE = 2
+const MOTION_TIMER_HANDLE = 3
+const ENCRYPTION_TIMER_HANDLE = 4
 
 # Boot event listener
 event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
+	is_connected = 0
+	current_bond_handle = $ff
 	#slider is not moving
 	moving = 0
 	# We haven't taken any photos yet
@@ -22,10 +34,10 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	shots_requested = 0
 	call attributes_write(c_shots_requested, 0, 2, shots_requested)
 	# Expsure set to 30 seconds
-	exposure = 30*32768
+	exposure = 30*TICKS_PER_SECOND
 	call attributes_write(c_exposure_length, 0, 2, exposure)
 	# Interval set to 45 seconds
-	interval = 45*32768
+	interval = 45*TICKS_PER_SECOND
 	call attributes_write(c_shot_interval, 0, 2, interval)
 	# Update status to reflect uninitialized state
 	status = 0
@@ -36,6 +48,8 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	call gap_set_adv_parameters(32, 48, 7)
 	# Start advertising (discoverable/connectable)
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
+	# Enable bonding to this device by BLE
+	call sm_set_bondable_mode(1)
 	# enable interrupt on P1_3 and P1_4 rising edge
 	# (parameters are port=1, bitmask=0b000011000=18, edge=falling)
 	call hardware_io_port_config_irq(1, 18, 1)
@@ -64,13 +78,38 @@ end
 # Connection event listener
 event connection_status(connection, flags, address, address_type, conn_interval, timeout, latency, bonding)
 	# Device is connected
-	# Do anything we want to happen here...
+	# Let's encrypt the connection. Just for good measure. Lots of top secret stuff going on.
+	# sm_encrypt_start(connection handle, bonding (0 for no bonding, 1 for bonding if not bonded)
+	# Set up a connection interval of between 6*1.25ms to 10*1.25ms (7.5-12.5ms)
+	# Android and iOS respond to connection interval updates, but cannot set them (they also have minimums)
+	if is_connected = 0 then
+		call connection_update(connection, 6, 10, latency, timeout)
+	end if
+	is_connected = 1
+
+	# Use whatever bonding handle we're given (used in case of bond failure)
+	current_bond_handle = bonding
+
+	# If we're not yet encrypted, request encryption 
+	if (flags & $02) != $02 then 
+		# Request encryption if not encrypted already
+		if bonding = $ff then
+			call sm_encrypt_start(connection, 1)
+		else
+			# Start one-shot encryption attempt timer in case the remote side doesn't attempt an encrypted link within 1 second 
+			# (this might happen if you bond with a smartphone and then remove the pairing info from the phone side, but not the local module side)
+			# Only seems to work on iOS - Android rejects the pairing a few times - works eventually...
+			call hardware_set_soft_timer(ENCRYPTION_TIMEOUT_SECONDS * TICKS_PER_SECOND, ENCRYPTION_TIMER_HANDLE, 1)
+        end if
+    end if
 end
 
-# Desconnection event listener
-event connection_disconnected(connection, result)
-	#connection disconnected, resume advertising
-	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
+# Disconnection event listener
+event connection_disconnected(handle, result)
+    # Reset the current_bond_handle
+    current_bond_handle = $ff
+    # Make peripheral discoverable
+    call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
 end
 
 
@@ -80,15 +119,15 @@ end
 # If we are in the middle of a sequence, and have run into the end limit switch,
 # this ignores the request. Which is good, the system keeps running as before
 # but doesn't move. 
-dim result
-dim portread
-dim data
+dim out_result
+dim out_portread
+dim out_data
 procedure MoveSlider(offset)
 	if offset > 0
 		# Motion in the positive direction.
 		# Check to see if we are at the positive limit...
-		call hardware_io_port_read(1, $10)(result, portread, data)
-		if data = $10 then
+		call hardware_io_port_read(1, $10)(out_result, out_portread, out_data)
+		if out_data = $10 then
 			# We are not at the limit (active low limit)
 			call hardware_timer_comparator(1,1,6,(slide_zero_pwm + offset))
 		end if
@@ -96,8 +135,8 @@ procedure MoveSlider(offset)
 	if offset < 0
 		# Motion in the negative direction.
 		# Check to see if we are at the negative limit...
-		call hardware_io_port_read(1, $8)(result, portread, data)
-		if data = $8 then
+		call hardware_io_port_read(1, $8)(out_result, out_portread, out_data)
+		if out_data = $8 then
 			# We are not at the limit (active low limit)
 			call hardware_timer_comparator(1,1,6,(slide_zero_pwm + offset))
 		end if
@@ -137,9 +176,9 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 				shots_taken = 0
 				call attributes_write(c_shots_taken, 0, 2, shots_taken)
 				# Get the number of ticks we need to wait for the interval and exposure...
-				call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval)
-				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure)
-				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+				call attributes_read(c_shot_interval, 0)(out_handle, out_offset, out_result, out_value_len, interval)
+				call attributes_read(c_exposure_length, 0)(out_handle, out_offset, out_result, out_value_len, exposure)
+				call attributes_read(c_shots_requested, 0)(out_handle, out_offset, out_result, out_value_len, shots_requested)
 				# Do some basic error checking... Do nothing if it doesn't make sense...
 				if (interval - exposure) < 1 then # We need at least one second downtime...
 					call attributes_write(c_error_code, 0, 2, $01)
@@ -155,7 +194,7 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 				call attributes_write(c_slider_status, 0, 2, status)
 				# configure soft timer for 1 second intervals (32768 Hz crystal, interval = 32768/32768)
 				# This timer is used for triggering photos (clock cycles per tick, timer handle, 0 - continuous)
-			    call hardware_set_soft_timer(interval, 1, 0)
+			    call hardware_set_soft_timer(interval, INTERVAL_TIMER_HANDLE, 0)
 			end if
 		end if
 	end if
@@ -201,21 +240,21 @@ end
 
 # catch timer ticks. This handles both the continous timer, and the one shot timer that moves the camera.
 event hardware_soft_timer(handle)
-	if handle = 1 then # Continuous timer event
+	if handle = INTERVAL_TIMER_HANDLE then # Continuous timer event
 		if status = 2 then
 			# Check for an update on the number of ticks we need to wait for the interval and exposure and shot count...
-			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval)
-			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure)
-			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
+			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, out_result, out_value_len, interval)
+			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, out_result, out_value_len, exposure)
+			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, out_result, out_value_len, shots_requested)
 			# Start the exposure...
 			call hardware_io_port_write(0, $01, $01)
 			# Use a one-shot timer to end the exposure...
 			# Exposure, timer handle = 2, single shot
-			call hardware_set_soft_timer(exposure, 2, 1)
+			call hardware_set_soft_timer(exposure, EXPOSURE_TIMER_HANDLE, 1)
 		end if
 	end if
 
-	if handle = 2 # One-shot timer event, handles the exposure timer
+	if handle = EXPOSURE_TIMER_HANDLE # One-shot timer event, handles the exposure timer
 		# End the exposure... this only works while camera is in bulb mode. Otherwise it just takes the specified exposure.
 		call hardware_io_port_write(0, $01, $00)
 		# Update the number of shots taken...
@@ -239,13 +278,75 @@ event hardware_soft_timer(handle)
 		call MoveSlider(1000)
 		# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
 		# 0.5 second, timer handle = 3, single shot
-		call hardware_set_soft_timer(16384, 3, 1)
+		call hardware_set_soft_timer(16384, MOTION_TIMER_HANDLE, 1)
 	end if
 
-	if handle = 3 # One-shot timer event, handles the motion timer
+	if handle = MOTION_TIMER_HANDLE # One-shot timer event, handles the motion timer
 		# Stop servo motion
 		call MoveSlider(0)
 		# Ok, set the moving flag back to zero so we can process repeating timer handle 1's events again.
 		moving = 0
+	end if
+
+	# Other side hasn't tried an encrypted link yet even though we are
+	# bonded as far as we know, so try to start it from this end
+	if handle = ENCRYPTION_TIMER_HANDLE then
+		call sm_encrypt_start(0, 1)
+	end if 
+end
+
+
+
+event sm_bonding_fail(handle, result)
+
+	# If bonding fails, handle it gracefully based on the following possible results:
+	# - 0x018B - Out of bonds (no space left, all 8 bonding slots taken)
+	# - 0x0205 - Authentication failure (shouldn't happen with "just works" mode, but might otherwise)
+	# - 0x0206 - Pin or key missing (probably local or remote device is missing the key, but not both)
+	# - 0x0301 - Passkey entry failed (also shouldn't happen in "just works" mode unless bonding is cancelled)
+	# - 0x0302 - OOB data not available (only occurs if OOB is required and not supported on both ends)
+	# - 0x0303 - Authentication requirements (I/O capabilities required but not supported)
+	# - 0x0304 - Confirm value failed (PIN entry/comparison attempted but failed)
+	# - 0x0305 - Pairing not supported (also occurs if bond info removed from remote device but not local module)
+	# - 0x0306 - Encryption key size (key size insufficient to meet security requirements)
+	# - 0x0307 - Command not supported (SMP command is not supported on this device)
+	# - 0x0308 - Unspecified reason (may occur if bond info is present remotely but not locally)
+	# - 0x0309 - Repeated attempts (too little time has elapsed since last pairing/security request)
+	# - 0x030A - Invalid parameters (bad parameters sent during pairing/bonding process)
+
+
+    # NOTE: The most common cases:
+	# - 0x018B, which means you ran out of space and must remove at least one bond in order to bond again
+	# - 0x0206, which typically means the pairing info was removed on the remote device but not locally
+	# - 0x0301, which typically means the user cancelled the pairing request or entered the wrong passkey
+	# - 0x0305, which is like 0x0206 but is often generated instead if the remote device is a smartphone
+	# - 0x0308, which typically means the pairing info was removed on the local device but not remotely
+	if result = $018b then
+		# Only solved by removing bonds - requires the user to reset the bonds...
+	end if
+
+	if result = $0301 then
+		# Usually solved simply by trying again
+		# Seems to solve most problems on iOS 
+		# On Android, pairing rejected a few times if Android deleted pairing without informing device
+		call sm_encrypt_start(0, 1)
+	end if
+
+	if result = $0305 || result = $0206 then
+		# Remove local bonding info first, then the remote device needs to reconnect
+		# If current_bond_handle is $ff, that means we don't have a bonding handle - so not much we can do
+		if current_bond_handle != $ff then
+			call sm_delete_bonding(current_bond_handle)
+		end if
+
+		# Sometimes takes a few tries
+		call connection_disconnect(0)
+	end if
+
+    if result = $0308 then
+		# Remove remote bonding info first, then the remote device needs to reconnect
+		# Android can recover automatically, iOS cannot
+		# Instead of disconnecting, just force a re-encryption... Usually works
+		call sm_encrypt_start(0, 1)
 	end if
 end
