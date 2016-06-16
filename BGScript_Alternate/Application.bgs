@@ -1,7 +1,10 @@
 dim shots_taken # Counter to keep track of the number of shots taken during a time lapse sequence
 dim shots_requested # Variable that is stored when the client updates us with a number of shots to take in the sequence (set in GATT server)
-dim slide_zero_pwm # Timer1 PWM greyscale value, calibrated so that the sliding axis does not move
-dim pwm_baseline # Baseline PWM setting that produces a 50 Hz timer frequency.
+# This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
+# n = 1,024,000/(Desired Frequency, 50), so n = 102400/50 = 20480
+const pwm_baseline = 20480 # Baseline PWM setting that produces a 50 Hz timer frequency.
+# Set the 'zero' pwm greyscale to 50% (20480/2). Tune as necessary when hardware is ready for testing
+const slide_zero_pwm = 10240 # Timer1 zero movement PWM greyscale value (0 to 20480), calibrated so that the sliding axis does not move
 dim initializing # Flag to indicate that the slider is initializing (sliding axis moves to limit, yaw axis set to initial position)
 dim interval # Value which is set from GATT server to specify the frequency of the soft timer (units of clock periods, operates at 32768 Hz). Maximum is 128 seconds.
 dim exposure # Value which is set from GATT server to specify the duration of the one-shot timer (units of clock periods, operates at 32768 Hz)
@@ -27,11 +30,6 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# Update status to reflect uninitialized state
 	status = 0
 	call attributes_write(c_slider_status, 0, 2, status)
-	# Set the 'zero' pwm greyscale to 50%
-	# This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 128, resulting in 256 kHz)
-	# n = 256,000/(Desired Frequency, 50), so n = 256000/50 = 5120
-	pwm_baseline = 5120
-	slide_zero_pwm = pwm_baseline/2
 	initializing = 0
 	# Set advertisement interval to 20ms min, 30 ms max (units are 0.625 ms)
 	# Use all three advertisement channels (7 = bitmask 0b00000111)
@@ -92,7 +90,7 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 			# Check to see if we are at the limit...
 			call hardware_io_port_read(1, $18)(result, portread, data)
 			if data = $8 then
-				# We have not hit any limit switch yet... run as needed.
+				# We have not hit the negative limit switch yet...
 				# Now move the sliding axis until we reach the negative limit switch
 				# Set duty cycle to 25% (pwm_baseline/4)
 				# This will cause our continuous rotation servo to move negative indefinitely
