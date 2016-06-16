@@ -99,22 +99,15 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 				# (until we catch the limit switch input low transition)
 				# We should add in capability to start from the other direction, too...
 				call hardware_timer_comparator(1,1,6,(pwm_baseline/4))
-				while initializing = 1
-					# Twiddle our thumbs waiting for the limit switch to be hit...
-				end while
-				# The slide axis has reached the limit switch.
+				# When the slide axis reaches the limit switch, the interrupt event is triggered.
+				# The initializing flag let's the interrupt event know that it needs to tell the client
+				# that the system is now initialized.
 			else
 				# Already at the limit! Don't do anything.
 			end if
 			# !!!!!!!! remember to add in capability for the other direction.
 			
-			# Reset the GATT initialize trigger. This has the indicate property.
-			# This pushes the updated attribute to the client.
-			call attributes_write(u_init, 0, 1, 0)
-			# Finished initializing!
-			# Update status to reflect initialized state
-			status = 1
-			call attributes_write(c_slider_status, 0, 2, status)
+			
 		end if
 	end if
 
@@ -158,13 +151,31 @@ event hardware_io_port_status(delta, port, irq, state)
             # P1_3 is LOW and the source of this interrupt
             # Stop slider motion...
 			call hardware_timer_comparator(1,1,6,slide_zero_pwm)
-			initializing = 0
+			if initializing = 1 then
+				initializing = 0
+				# Reset the GATT initialize trigger. This has the indicate property.
+				# This pushes the updated attribute to the client.
+				call attributes_write(u_init, 0, 1, 0)
+				# Finished initializing!
+				# Update status to reflect initialized state
+				status = 1
+				call attributes_write(c_slider_status, 0, 2, status)
+			end if
         end if
         if (irq & $10) = 0 then
             # P1_4 is LOW and the source of this interrupt
             # Stop slider motion...
 			call hardware_timer_comparator(1,1,6,slide_zero_pwm)
-			initializing = 0
+			if initializing = 1 then
+				initializing = 0
+				# Reset the GATT initialize trigger. This has the indicate property.
+				# This pushes the updated attribute to the client.
+				call attributes_write(u_init, 0, 1, 0)
+				# Finished initializing!
+				# Update status to reflect initialized state
+				status = 1
+				call attributes_write(c_slider_status, 0, 2, status)
+			end if
         end if
     end if
 end
@@ -177,10 +188,6 @@ event hardware_soft_timer(handle)
 			call attributes_read(c_shot_interval, 0)(out_handle, out_offset, result, out_value_len, interval)
 			call attributes_read(c_exposure_length, 0)(out_handle, out_offset, result, out_value_len, exposure)
 			call attributes_read(c_shots_requested, 0)(out_handle, out_offset, result, out_value_len, shots_requested)
-			while moving = 1
-				# Twiddle our thumbs waiting for the slide axis to finish moving...
-				# I hope this doesn't block...
-			end while
 			# Start the exposure...
 			call hardware_io_port_write(0, $01, $01)
 			# Use a one-shot timer to end the exposure...
