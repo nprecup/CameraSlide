@@ -1,7 +1,7 @@
 dim shots_taken # Counter to keep track of the number of shots taken during a time lapse sequence
 dim shots_requested # Variable that is stored when the client updates us with a number of shots to take in the sequence (set in GATT server)
 dim initializing # Flag to indicate that the slider is initializing (sliding axis moves to limit, yaw axis set to initial position)
-dim interval # Value which is set from GATT server to specify the frequency of the soft timer (units of clock periods, operates at 32768 Hz). Maximum is 128 seconds.
+dim interval # Value which is set from GATT server to specify the period of the soft timer (units of clock periods, operates at 32768 Hz). Maximum is 128 seconds.
 dim exposure # Value which is set from GATT server to specify the duration of the one-shot timer (units of clock periods, operates at 32768 Hz)
 dim status # variable describing the state of the system (0 - uninitialized, 1 - initialized, 2 - capturing sequence)
 dim moving # variable to indicate motion of the sliding axis
@@ -94,13 +94,13 @@ event connection_status(connection, flags, address, address_type, conn_interval,
 	# Use whatever bonding handle we're given (used in case of bond failure)
 	current_bond_handle = bonding
 
-	# If we're not yet encrypted, request encryption 
-	if (flags & $02) != $02 then 
+	# If we're not yet encrypted, request encryption
+	if (flags & $02) != $02 then
 		# Request encryption if not encrypted already
 		if bonding = $ff then
 			call sm_encrypt_start(connection, 1)
 		else
-			# Start one-shot encryption attempt timer in case the remote side doesn't attempt an encrypted link within 1 second 
+			# Start one-shot encryption attempt timer in case the remote side doesn't attempt an encrypted link within 1 second
 			# (this might happen if you bond with a smartphone and then remove the pairing info from the phone side, but not the local module side)
 			# Only seems to work on iOS - Android rejects the pairing a few times - works eventually...
 			call hardware_set_soft_timer(ENCRYPTION_TIMEOUT_SECONDS * TICKS_PER_SECOND, ENCRYPTION_TIMER_HANDLE, 1)
@@ -122,7 +122,7 @@ end
 # This procedure checks to make sure we haven't hit a limit switch before moving.
 # If we are in the middle of a sequence, and have run into the end limit switch,
 # this ignores the request. Which is good, the system keeps running as before
-# but doesn't move. 
+# but doesn't move.
 dim out_result
 dim out_portread
 dim out_data
@@ -303,7 +303,7 @@ event hardware_soft_timer(handle)
 	# bonded as far as we know, so try to start it from this end
 	if handle = ENCRYPTION_TIMER_HANDLE then
 		call sm_encrypt_start(0, 1)
-	end if 
+	end if
 end
 
 
@@ -338,7 +338,7 @@ event sm_bonding_fail(handle, result)
 
 	if result = $0301 then
 		# Usually solved simply by trying again
-		# Seems to solve most problems on iOS 
+		# Seems to solve most problems on iOS
 		# On Android, pairing rejected a few times if Android deleted pairing without informing device
 		call sm_encrypt_start(0, 1)
 	end if
