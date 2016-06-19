@@ -98,5 +98,12 @@
             <properties read="true" notify="true"/>
             <value length="4" type="hex"/>
         </characteristic>
+
+        <!-- Slide axis PWM zero value -->
+        <characteristic uuid="9aabd615-7705-4bf0-b1f5-36073912a203" id="slide_zero">
+            <description>Slide axis PWM zero value</description>
+            <properties read="true" notify="true" write="true" authenticated_write="true"/>
+            <value length="4" type="hex"/>
+        </characteristic>
     </service>
 </configuration>
