@@ -28,6 +28,8 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	status = 0
 	call attributes_write(c_slider_status, 0, 2, status)
 	# Set the 'zero' pwm greyscale to 50%
+	# This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 128, resulting in 256 kHz)
+	# n = 256,000/(Desired Frequency, 50), so n = 256000/50 = 5120
 	pwm_baseline = 5120
 	slide_zero_pwm = pwm_baseline/2
 	initializing = 0
@@ -36,10 +38,8 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	call gap_set_adv_parameters(32, 48, 7)
 	# Start advertising (discoverable/connectable)
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
-
-    call hardware_io_port_config_direction(0, 18)
 	# enable interrupt on P1_3 and P1_4 rising edge
-    # (parameters are port=0, bitmask=0b000011000, edge=falling)
+    # (parameters are port=1, bitmask=0b000011000=18, edge=falling)
     call hardware_io_port_config_irq(1, 18, 1)
     # Set shutter (P1_0) and focus (P1_1) as output
     # (port=1, pin mode mask = 0b00000011)
@@ -48,7 +48,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
 end
- 
+
 # Connection event listener
 event connection_status(connection, flags, address, address_type, conn_interval, timeout, latency, bonding)
 	# Device is connected
