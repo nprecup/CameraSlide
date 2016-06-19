@@ -11,6 +11,6 @@
     <!-- <wakeup_pin enable="true" port="0" pin="0" /> -->
     <port index="0" tristatemask="0" pull="down" />
     <pmux regulator_pin="7" />
-    <!-- Enable timer 1, channels 0 to 2, divisor set to 3 (128) -->
-    <timer index ="1" enabled_channels ="0x07" divisor ="3" mode ="2" alternate ="1" />
+    <!-- Enable timer 1, channels 0 to 2, divisor set to 2 (32) -->
+    <timer index ="1" enabled_channels ="0x07" divisor ="2" mode ="2" alternate ="1" />
 </hardware>
