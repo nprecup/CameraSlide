@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration>
+ 
+    <service uuid="1800" id="s_generic_access">
+      <description>Generic Access Profile</description>
+ 
+      <characteristic uuid="2a00" id="c_device_name">
+        <description>Device Name</description>
+        <properties read="true" const="true" />
+        <value>Camera Slider</value>
+      </characteristic>
+ 
+      <characteristic uuid="2a01" id="c_appearance">
+        <description>Appearance</description>
+        <properties read="true" const="true" />
+        <value type="hex">4142</value>
+      </characteristic>
+    </service>
+ 
+    <service type="primary" uuid="9000" id="manufacturer">
+        <characteristic uuid="9100">
+            <properties read="true" const="true" />
+            <value type="hex">000780c0ffeef00d</value>
+        </characteristic>
+        <characteristic uuid="9101">
+            <properties read="true" const="true" />
+            <value>BLE113</value>
+        </characteristic>
+        <characteristic uuid="9106">
+            <properties read="true" const="true" />
+            <value>Bluegiga</value>
+        </characteristic>
+    </service>
+
+    <!-- custom service -->
+    <service uuid="624e957f-cb42-4cd6-bacc-84aeb898f69b" advertise="true">
+        <description>Motorized Camera Slide Service</description>
+        
+        <!-- Initialize, boolean (one byte integer), trigger init on 0 to 1 transition -->
+        <characteristic uuid="d9768c38-327b-11e6-ac61-9e71128cae77" id="u_init">
+            <description>Initialize Slide</description>
+            <properties read="true" write="true" authenticated_write="true" indicate="true" />
+            <value length="1" type="hex">0</value>
+        </characteristic>
+        
+        <!-- Start sequence, boolean (one byte integer), trigger sequence on 0 to 1 transition -->
+        <characteristic uuid="e4c937b3-7f6d-41f9-b997-40c561f4453b" id="u_trigger_sequence">
+            <description>Trigger Sequence</description>
+            <properties write="true" authenticated_write="true" />
+            <value length="1" type="hex">0</value>
+        </characteristic>
+        
+        <!-- Status, make this an integer. 0 nothing, others for other situations as needed. Single byte integer. --> 
+        <characteristic uuid="df342b03-53f9-43b4-acb6-62a63ca0615a" id="c_slider_status">
+            <description>Current Status</description>
+            <properties read="true" notify="true"/>
+            <value length="1" type="hex">0</value>
+        </characteristic>
+        
+        <!-- Interval between shots. Must be larger than exposure length. Can be updated by client (phone) at any time during time lapse sequence. --> 
+        <characteristic uuid="789d7f74-3263-11e6-ac61-9e71128cae77" id="c_shot_interval">
+            <description>Interval Length</description>
+            <properties read="true" write="true" authenticated_write="true"/>
+            <value length="4" type="hex" />
+        </characteristic>
+
+        <!-- Exposure length. Can be updated by client (phone) at any time during time lapse sequence. --> 
+        <characteristic uuid="99b1602c-3263-11e6-ac61-9e71128cae77" id="c_exposure_length">
+            <description>Exposure Length</description>
+            <properties read="true" write="true" authenticated_write="true"/>
+            <value length="4" type="hex" />
+        </characteristic>
+
+        <!-- Shots Taken, 2 byte integer --> 
+        <characteristic uuid="9ff71f74-4606-478e-9a1c-506497d0ac81" id="c_shots_taken">
+            <description>Number of shots taken</description>
+            <properties read="true" notify="true" />
+            <value length="2" type="hex"/>
+        </characteristic>
+
+        <!-- Shots to take, 2 byte integer --> 
+        <characteristic uuid="f6653e8c-327d-11e6-ac61-9e71128cae77" id="c_shots_requested">
+            <description>Number of shots requested</description>
+            <properties read="true" write="true" authenticated_write="true"/>
+            <value length="2" type="hex"/>
+        </characteristic>
+
+        <!-- slider length, integer inches --> 
+        <characteristic uuid="bb891e48-3267-11e6-ac61-9e71128cae77" id="c_slider_length">
+            <description>Number of shots taken</description>
+            <properties read="true" />
+            <value length="4" type="hex"/>
+        </characteristic>
+
+        <!-- error code --> 
+        <characteristic uuid="da9f46dc-32a7-11e6-ac61-9e71128cae77" id="c_error_code">
+            <description>Error Code</description>
+            <properties read="true" notify="true"/>
+            <value length="4" type="hex"/>
+        </characteristic>
+
+        <!-- Slide axis PWM zero value -->
+        <characteristic uuid="9aabd615-7705-4bf0-b1f5-36073912a203" id="slide_zero">
+            <description>Slide axis PWM zero value</description>
+            <properties read="true" notify="true" write="true" authenticated_write="true"/>
+            <value length="4" type="hex"/>
+        </characteristic>
+    </service>
+</configuration>
