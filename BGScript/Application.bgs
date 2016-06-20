@@ -53,12 +53,12 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	call gap_set_mode(gap_general_discoverable, gap_undirected_connectable)
 	# Enable bonding to this device by BLE
 	call sm_set_bondable_mode(1)
-	# enable interrupt on P1_3 and P1_4 rising edge
+	# enable interrupt on P1_3 and P1_4 falling edge
 	# (parameters are port=1, bitmask=0b000011000=18, edge=falling)
 	call hardware_io_port_config_irq(1, 18, 1)
 	# Set shutter (P1_0) and focus (P1_1) as output
 	# (port=1, pin mode mask = 0b00000011)
-	call hardware_io_port_config_direction(1, $02) # Set P0_0 pin HIGH
+	call hardware_io_port_config_direction(1, $03)
 	# Set shutter and focus pin outputs to zero
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
@@ -215,9 +215,10 @@ end
 
 # catch limit switch event P1_3, P1_4 (active LOW configuration)
 event hardware_io_port_status(delta, port, irq, state)
+	# Check that we're on the right port
 	if port = 1 then
-		if (irq & $8) = 0 then
-			# P1_3 is LOW and the source of this interrupt
+		# P1_3 is LOW and the source of this interrupt
+		if (state & $8) = 0 then
 			# Stop slider motion...
 			call MoveSlider(0)
 			if initializing = 1 then
@@ -233,7 +234,7 @@ event hardware_io_port_status(delta, port, irq, state)
 				call attributes_write(c_slider_status, 0, 2, status)
 			end if
 		end if
-		if (irq & $10) = 0 then
+		if (state & $10) = 0 then
 			# P1_4 is LOW and the source of this interrupt
 			# Stop slider motion...
 			call MoveSlider(0)
