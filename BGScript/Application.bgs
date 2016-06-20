@@ -7,12 +7,15 @@ dim status # variable describing the state of the system (0 - uninitialized, 1 -
 dim moving # variable to indicate motion of the sliding axis
 dim is_connected # variable to indicate connection status
 dim current_bond_handle # variable to indicate bonding to a peripheral (for encrypted connections)
+dim out_result # just for function output
+dim out_value_len # length of the data output from a function
+dim out_value # value from function output
 
 # This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
 # n = 1,024,000/(Desired Frequency, 50), so n = 102400/50 = 20480
 const pwm_baseline = 20480 # Baseline PWM setting that produces a 50 Hz timer frequency.
 # Set the 'zero' pwm greyscale to 50% (20480/2). Tune as necessary when hardware is ready for testing
-dim slide_zero_pwm = 10240 # Timer1 zero movement PWM greyscale value (0 to 20480), calibrated so that the sliding axis does not move
+dim slide_zero_pwm # Timer1 zero movement PWM greyscale value (0 to 20480), calibrated so that the sliding axis does not move
 const ENCRYPTED_VALUE = 42
 const TICKS_PER_SECOND = 32768
 const ENCRYPTION_TIMEOUT_SECONDS = 1
@@ -60,7 +63,8 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
 	# Load PWM zero setting:
-	call flash_ps_load($8000)(result, 4, slide_zero_pwm)
+	call flash_ps_load($8000)(out_result, out_value_len, out_value)
+	slide_zero_pwm = out_value
 	# Write this value to the GATT server
 	call attributes_write(slide_zero, 0, 4, slide_zero_pwm)
 	# Configure timer for PWM servo source...
@@ -123,7 +127,6 @@ end
 # If we are in the middle of a sequence, and have run into the end limit switch,
 # this ignores the request. Which is good, the system keeps running as before
 # but doesn't move.
-dim out_result
 dim out_portread
 dim out_data
 procedure MoveSlider(offset)
@@ -154,7 +157,6 @@ end
 
 dim out_handle
 dim out_offset
-dim out_value_len
 # Catch an attribute write event from the phone...
 event attributes_value(connection, reason, handle, offset, value_len, value_data)
 	# The GATT server received a u_init 0 to 1 transition.
