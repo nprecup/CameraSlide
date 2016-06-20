@@ -1,11 +1,11 @@
 dim shots_taken # Counter to keep track of the number of shots taken during a time lapse sequence
 dim shots_requested # Variable that is stored when the client updates us with a number of shots to take in the sequence (set in GATT server)
-dim initializing # Flag to indicate that the slider is initializing (sliding axis moves to limit, yaw axis set to initial position)
+dim is_initializing # Flag to indicate that the slider is is_initializing (sliding axis moves to limit, yaw axis set to initial position)
 dim interval # Value which is set from GATT server to specify the frequency of the soft timer (units of clock periods, operates at 32768 Hz). Maximum is 128 seconds.
 dim exposure # Value which is set from GATT server to specify the duration of the one-shot timer (units of clock periods, operates at 32768 Hz)
 dim status # variable describing the state of the system (0 - uninitialized, 1 - initialized, 2 - capturing sequence)
-dim moving # variable to indicate motion of the sliding axis
-dim is_connected # variable to indicate connection status
+dim is_moving # flag to indicate motion of the sliding axis
+dim is_connected # flag to indicate connection status
 dim current_bond_handle # variable to indicate bonding to a peripheral (for encrypted connections)
 
 # This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
@@ -25,8 +25,8 @@ const ENCRYPTION_TIMER_HANDLE = 4
 event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	is_connected = 0
 	current_bond_handle = $ff
-	#slider is not moving
-	moving = 0
+	#slider is not is_moving
+	is_moving = 0
 	# We haven't taken any photos yet
 	shots_taken = 0
 	call attributes_write(c_shots_taken, 0, 2, shots_taken)
@@ -42,7 +42,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# Update status to reflect uninitialized state
 	status = 0
 	call attributes_write(c_slider_status, 0, 2, status)
-	initializing = 0
+	is_initializing = 0
 	# Set advertisement interval to 20ms min, 30 ms max (units are 0.625 ms)
 	# Use all three advertisement channels (7 = bitmask 0b00000111)
 	call gap_set_adv_parameters(32, 48, 7)
@@ -117,9 +117,9 @@ event connection_disconnected(handle, result)
 end
 
 
-# Procedure for moving the sliding axis.
+# Procedure for is_moving the sliding axis.
 # Pass in non-zero PWM offset for motion.
-# This procedure checks to make sure we haven't hit a limit switch before moving.
+# This procedure checks to make sure we haven't hit a limit switch before is_moving.
 # If we are in the middle of a sequence, and have run into the end limit switch,
 # this ignores the request. Which is good, the system keeps running as before
 # but doesn't move. 
@@ -161,12 +161,12 @@ event attributes_value(connection, reason, handle, offset, value_len, value_data
 	if handle = u_init then
 		if value_data(0:1) = 1 then
 			# Set a flag to let the limit switch interrupts know we are initialzing the slide axis...
-			initializing = 1
+			is_initializing = 1
 			# Now move the sliding axis until we reach the negative limit switch
 			# At some point add in capability to initialize to the other side of the slider.
 			call MoveSlider(-100)
 			# When the slide axis reaches the limit switch, the interrupt event is triggered.
-			# The initializing flag let's the interrupt event know that it needs to tell the client
+			# The is_initializing flag let's the interrupt event know that it needs to tell the client
 			# that the system is now initialized.
 		end if
 	end if
@@ -218,14 +218,14 @@ event hardware_io_port_status(delta, port, irq, state)
 			# P1_3 is LOW and the source of this interrupt
 			# Stop slider motion...
 			call MoveSlider(0)
-			if initializing = 1 then
-				# We are initializing the sliding axis (moving it to 'zero').
+			if is_initializing = 1 then
+				# We are is_initializing the sliding axis (is_moving it to 'zero').
 				# The axis hit the limit switch. We're initialized.
-				initializing = 0
+				is_initializing = 0
 				# Reset the GATT initialize trigger. This has the indicate property.
 				# This pushes the updated attribute to the client.
 				call attributes_write(u_init, 0, 1, 0)
-				# Finished initializing!
+				# Finished is_initializing!
 				# Update status to reflect initialized state
 				status = 1
 				call attributes_write(c_slider_status, 0, 2, status)
@@ -235,12 +235,12 @@ event hardware_io_port_status(delta, port, irq, state)
 			# P1_4 is LOW and the source of this interrupt
 			# Stop slider motion...
 			call MoveSlider(0)
-			if initializing = 1 then
-				initializing = 0
+			if is_initializing = 1 then
+				is_initializing = 0
 				# Reset the GATT initialize trigger. This has the indicate property.
 				# This pushes the updated attribute to the client.
 				call attributes_write(u_init, 0, 1, 0)
-				# Finished initializing!
+				# Finished is_initializing!
 				# Update status to reflect initialized state
 				status = 1
 				call attributes_write(c_slider_status, 0, 2, status)
@@ -283,8 +283,8 @@ event hardware_soft_timer(handle)
 		# To adjust the distance the camera moves for each shot:
 		#	Configure the PWM greyscale to adjust speed of servo
 		#	Configure the one-shot timer delay to adjust the span of time the servo moves the camera
-		# We need to make sure that this timer event waits while we are moving, so we have a moving flag we need to set...
-		moving = 1
+		# We need to make sure that this timer event waits while we are is_moving, so we have a is_moving flag we need to set...
+		is_moving = 1
 		# Change PWM output by some positive offset...
 		call MoveSlider(1000)
 		# Use a one-shot timer to move the slide axis. For the yaw axis (when implimented) just move to the next PWM greyscale position.
@@ -295,8 +295,8 @@ event hardware_soft_timer(handle)
 	if handle = MOTION_TIMER_HANDLE # One-shot timer event, handles the motion timer
 		# Stop servo motion
 		call MoveSlider(0)
-		# Ok, set the moving flag back to zero so we can process repeating timer handle 1's events again.
-		moving = 0
+		# Ok, set the is_moving flag back to zero so we can process repeating timer handle 1's events again.
+		is_moving = 0
 	end if
 
 	# Other side hasn't tried an encrypted link yet even though we are
