@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Slide Control</string>
+    <string name="ble_not_supported">BLE is not supported</string>
 </resources>
