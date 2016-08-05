@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.example.bluetooth.le;
+package space.nathanprecup.www.blecontroller;
 
 import android.app.Activity;
 import android.app.ListActivity;
