@@ -22,7 +22,6 @@ const ENCRYPTION_TIMEOUT_SECONDS = 1
 const INTERVAL_TIMER_HANDLE = 1
 const EXPOSURE_TIMER_HANDLE = 2
 const MOTION_TIMER_HANDLE = 3
-const ENCRYPTION_TIMER_HANDLE = 4
 
 # Boot event listener
 event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
@@ -103,13 +102,8 @@ event connection_status(connection, flags, address, address_type, conn_interval,
 		# Request encryption if not encrypted already
 		if bonding = $ff then
 			call sm_encrypt_start(connection, 1)
-		else
-			# Start one-shot encryption attempt timer in case the remote side doesn't attempt an encrypted link within 1 second
-			# (this might happen if you bond with a smartphone and then remove the pairing info from the phone side, but not the local module side)
-			# Only seems to work on iOS - Android rejects the pairing a few times - works eventually...
-			call hardware_set_soft_timer(ENCRYPTION_TIMEOUT_SECONDS * TICKS_PER_SECOND, ENCRYPTION_TIMER_HANDLE, 1)
-        end if
     end if
+  end if
 end
 
 # Disconnection event listener
@@ -302,11 +296,6 @@ event hardware_soft_timer(handle)
 		is_moving = 0
 	end if
 
-	# Other side hasn't tried an encrypted link yet even though we are
-	# bonded as far as we know, so try to start it from this end
-	if handle = ENCRYPTION_TIMER_HANDLE then
-		call sm_encrypt_start(0, 1)
-	end if
 end
 
 
