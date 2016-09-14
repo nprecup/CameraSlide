@@ -9,7 +9,7 @@ dim is_connected # variable to indicate connection status
 dim current_bond_handle # variable to indicate bonding to a peripheral (for encrypted connections)
 dim out_result # just for function output
 dim out_value_len # length of the data output from a function
-dim out_value # value from function output
+dim out_value(4) # value from function output
 
 # This baseline frequency is set by n periods of the harware timer clock (32,768,000 Hz, with divisor of 32, resulting in 1024 kHz)
 # n = 1,024,000/(Desired Frequency, 50), so n = 102400/50 = 20480
@@ -62,8 +62,8 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	# (port=1, pin selection mask = 0b00000011, pin logic mask = 0b00000000)
 	call hardware_io_port_write(0, $02, $00)
 	# Load PWM zero setting:
-	call flash_ps_load($8000)(out_result, out_value_len, out_value)
-	slide_zero_pwm = out_value
+	call flash_ps_load($8000)(out_result, out_value_len, out_value(0:4))
+	slide_zero_pwm = out_value(0:4)
 	# Write this value to the GATT server
 	call attributes_write(slide_zero, 0, 4, slide_zero_pwm)
 	# Configure timer for PWM servo source...
@@ -79,7 +79,7 @@ event system_boot(major ,minor ,patch ,build ,ll_version ,protocol_version ,hw)
 	call hardware_timer_comparator(1,1,6,slide_zero_pwm)
 	# Channel 2 (IO pin 1.4) is now the PWM output...
 	# set to 0% !!Uncomment when we have a new board!!
-	# call hardware_timer_comparator(1,2,6,0)
+	call hardware_timer_comparator(1,2,6,0)
 end
 
 # Connection event listener
