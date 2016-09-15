@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="7.6.0">
+<eagle version="7.5.0">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
@@ -2853,10 +2853,10 @@ Please make sure your boards conform to these design rules.</description>
 <element name="-LED+" library="led" package="CHIP-LED0603" value="BLUE" x="18.51" y="9.779" smashed="yes" rot="R180">
 <attribute name="NAME" x="17.621" y="8.509" size="0.762" layer="25" rot="R90"/>
 </element>
-<element name="R3" library="rcl" package="R0603" value="50k" x="14.83868125" y="34.556696875" smashed="yes" rot="MR270">
+<element name="R3" library="rcl" package="R0603" value="50 kOhm" x="14.83868125" y="34.556696875" smashed="yes" rot="MR270">
 <attribute name="VALUE" x="14.408815625" y="37.88576875" size="0.762" layer="28" rot="MR225"/>
 </element>
-<element name="R4" library="resistor" package="R0402" value="150" x="18.51" y="12.6365" smashed="yes" rot="R90"/>
+<element name="R4" library="resistor" package="R0402" value="150 Ohm" x="18.51" y="12.6365" smashed="yes" rot="R90"/>
 <element name="RESET" library="pinhead" package="1X02" value="" x="18.542" y="36.322" smashed="yes">
 <attribute name="NAME" x="22.24188125" y="34.41690625" size="1.27" layer="25" ratio="10" rot="R180"/>
 <attribute name="VALUE" x="16.002" y="33.147" size="1.27" layer="27"/>
@@ -2878,10 +2878,10 @@ Please make sure your boards conform to these design rules.</description>
 <attribute name="NAME" x="6.604" y="47.625" size="1.27" layer="26" ratio="10" rot="MR270"/>
 <attribute name="VALUE" x="15.24" y="44.577" size="1.27" layer="28" ratio="10" rot="MR0"/>
 </element>
-<element name="R5" library="resistor" package="R0402" value="150" x="5.588" y="52.832" smashed="yes" rot="MR270">
+<element name="R5" library="resistor" package="R0402" value="150 Ohm" x="5.588" y="52.832" smashed="yes" rot="MR270">
 <attribute name="VALUE" x="7.747" y="54.229" size="1.27" layer="28" rot="MR270"/>
 </element>
-<element name="R6" library="resistor" package="R0402" value="150" x="11.938" y="38.1" smashed="yes" rot="MR0"/>
+<element name="R6" library="resistor" package="R0402" value="150 Ohm" x="11.938" y="38.1" smashed="yes" rot="MR0"/>
 <element name="YAW" library="Random" package="35RA_SMT" value="3.5MMJACK" x="22.86" y="57.15" rot="R180"/>
 <element name="MOTPWR" library="pinhead" package="1X02" value="" x="7.62" y="72.39" smashed="yes" rot="R270">
 <attribute name="NAME" x="2.7178" y="75.7428" size="1.27" layer="25" ratio="10"/>

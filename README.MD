@@ -13,6 +13,6 @@ Circuit Design
 
 This project uses a BlueGiga BLE112 module to control and interface with a motorized camera slide. The BLE112 module contains a 2541 microcontroller that is capable of providing 16-bit resolution PWM output for servo drive signals, hardware interrupt events for limit switches, and timers with GPIO to trigger a camera shutter for time lapse photography. The system is currently being developed for Canon EOS cameras, with an Android app for bluetooth control.
 
-The circuit was designed using Eagle PCB design software. Below is a schematic of the circuit system.
+The circuit was designed using Eagle PCB design software. The schematic and board files are located in the repository and may be ordered through any PCB fab shop that can handle Eagle .brd files. Below is the schematic of the circuit.
 
-![Alt text](/Circuit/Schematic-V1-June14.png?raw=true "Camaera Slider Circuit")
+![Alt text](/Circuit/Schematic-V2-Sept14.png?raw=true "Camaera Slider Circuit")

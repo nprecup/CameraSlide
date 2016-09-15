@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="7.6.0">
+<eagle version="7.5.0">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
@@ -226,7 +226,7 @@ Philips Semiconductors, SOT363.pdf</description>
 <pin name="VIN" x="-15.24" y="0" length="middle"/>
 <pin name="VOUT" x="15.24" y="0" length="middle" rot="R180"/>
 <pin name="GND" x="0" y="-10.16" length="middle" rot="R90"/>
-<text x="-7.62" y="5.588" size="1.27" layer="95">VREG</text>
+<text x="-4.826" y="5.588" size="1.778" layer="95">NCP5501</text>
 </symbol>
 <symbol name="STEREO-JACK">
 <wire x1="-2.54" y1="5.08" x2="2.032" y2="5.08" width="0.1524" layer="94"/>
@@ -255,6 +255,7 @@ Philips Semiconductors, SOT363.pdf</description>
 <pin name="VCCB" x="15.24" y="7.62" length="middle" rot="R180"/>
 <pin name="DIR" x="15.24" y="0" length="middle" rot="R180"/>
 <pin name="B" x="15.24" y="-7.62" length="middle" rot="R180"/>
+<text x="-5.842" y="10.668" size="1.778" layer="95">74LVC1T45</text>
 </symbol>
 </symbols>
 <devicesets>
@@ -11934,7 +11935,7 @@ Source: http://www.leotronics.co.uk/Conexcon/Data%20Sheets/sec.%20A/1364ing.pdf<
 <part name="C1" library="rcl" deviceset="C-US" device="C1210" value="100uF"/>
 <part name="SUPPLY9" library="supply2" deviceset="GND" device=""/>
 <part name="P+4" library="supply1" deviceset="VCC" device=""/>
-<part name="R3" library="rcl" deviceset="R-US_" device="R0603" value="50k"/>
+<part name="R3" library="rcl" deviceset="R-US_" device="R0603" value="50 kOhm"/>
 <part name="P+5" library="supply1" deviceset="VCC" device=""/>
 <part name="U$3" library="Random" deviceset="NCP5501" device=""/>
 <part name="C2" library="rcl" deviceset="C-US" device="C0805" value="10uF"/>
@@ -11942,15 +11943,15 @@ Source: http://www.leotronics.co.uk/Conexcon/Data%20Sheets/sec.%20A/1364ing.pdf<
 <part name="RESET" library="pinhead" deviceset="PINHD-1X2" device=""/>
 <part name="SUPPLY5" library="supply2" deviceset="GND" device=""/>
 <part name="SUPPLY14" library="supply2" deviceset="GND" device=""/>
-<part name="R4" library="resistor" deviceset="R-US_" device="R0402" value="150"/>
+<part name="R4" library="resistor" deviceset="R-US_" device="R0402" value="150 Ohm"/>
 <part name="-LED+" library="led" deviceset="LED" device="CHIP-LED0603" value="BLUE"/>
 <part name="PWR" library="pinhead" deviceset="PINHD-1X2" device=""/>
 <part name="SUPPLY21" library="supply2" deviceset="GND" device=""/>
 <part name="C4" library="rcl" deviceset="C-US" device="C0805" value="10uF"/>
 <part name="FOCUS" library="optocoupler" deviceset="H11A*?M" device="S" technology="1"/>
 <part name="SHUTTER" library="optocoupler" deviceset="H11A*?M" device="S" technology="1"/>
-<part name="R5" library="resistor" deviceset="R-US_" device="R0402" value="150"/>
-<part name="R6" library="resistor" deviceset="R-US_" device="R0402" value="150"/>
+<part name="R5" library="resistor" deviceset="R-US_" device="R0402" value="150 Ohm"/>
+<part name="R6" library="resistor" deviceset="R-US_" device="R0402" value="150 Ohm"/>
 <part name="SUPPLY1" library="supply2" deviceset="GND" device=""/>
 <part name="SUPPLY2" library="supply2" deviceset="GND" device=""/>
 <part name="SUPPLY3" library="supply2" deviceset="GND" device=""/>
@@ -12040,7 +12041,7 @@ Source: http://www.leotronics.co.uk/Conexcon/Data%20Sheets/sec.%20A/1364ing.pdf<
 <instance part="SUPPLY15" gate="GND" x="175.26" y="104.14" rot="R90"/>
 <instance part="P+10" gate="1" x="68.58" y="208.28"/>
 <instance part="LIM" gate="G$1" x="116.84" y="83.82"/>
-<instance part="UART" gate="G$1" x="116.84" y="106.68"/>
+<instance part="UART" gate="G$1" x="109.22" y="106.68"/>
 <instance part="CAM" gate="G$1" x="185.42" y="195.58"/>
 </instances>
 <busses>
@@ -12417,17 +12418,17 @@ Source: http://www.leotronics.co.uk/Conexcon/Data%20Sheets/sec.%20A/1364ing.pdf<
 <net name="RX" class="0">
 <segment>
 <pinref part="U$1" gate="G$1" pin="P0_2"/>
-<label x="93.98" y="109.22" size="1.27" layer="95" xref="yes"/>
+<label x="111.76" y="109.22" size="1.27" layer="95" xref="yes"/>
 <pinref part="UART" gate="G$1" pin="1"/>
-<wire x1="91.44" y1="109.22" x2="114.3" y2="109.22" width="0.1524" layer="91"/>
+<wire x1="91.44" y1="109.22" x2="106.68" y2="109.22" width="0.1524" layer="91"/>
 </segment>
 </net>
 <net name="TX" class="0">
 <segment>
 <pinref part="U$1" gate="G$1" pin="P0_3"/>
-<label x="99.06" y="106.68" size="1.27" layer="95" xref="yes"/>
+<label x="111.76" y="106.68" size="1.27" layer="95" xref="yes"/>
 <pinref part="UART" gate="G$1" pin="2"/>
-<wire x1="114.3" y1="106.68" x2="91.44" y2="106.68" width="0.1524" layer="91"/>
+<wire x1="106.68" y1="106.68" x2="91.44" y2="106.68" width="0.1524" layer="91"/>
 </segment>
 </net>
 </nets>
